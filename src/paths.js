@@ -1,20 +1,51 @@
 const path = require('node:path');
 const os = require('node:os');
 
-function resolvePaths(homeOverride) {
+function normalizeRuntime(runtime) {
+  const value = String(runtime || 'claude').toLowerCase();
+  if (value === 'claude' || value === 'codex') {
+    return value;
+  }
+  return 'claude';
+}
+
+function joinByStyle(base, ...segments) {
+  const value = String(base || '');
+  if (value.includes('\\')) {
+    return path.win32.join(value, ...segments);
+  }
+  if (value.includes('/')) {
+    return path.posix.join(value, ...segments);
+  }
+  return path.join(value, ...segments);
+}
+
+function resolvePaths(homeOverride, runtime = 'claude') {
   const home = homeOverride || os.homedir();
-  const claudeDir = path.join(home, '.claude');
-  const kilntwoDir = path.join(claudeDir, 'kilntwo');
+  const selectedRuntime = normalizeRuntime(runtime);
+  const platformDir = selectedRuntime === 'codex' ? joinByStyle(home, '.codex') : joinByStyle(home, '.claude');
+  const kilntwoDir = joinByStyle(platformDir, 'kilntwo');
+  const agentsDir = selectedRuntime === 'codex'
+    ? joinByStyle(kilntwoDir, 'agents')
+    : joinByStyle(platformDir, 'agents');
+  const commandsDir = selectedRuntime === 'codex'
+    ? joinByStyle(kilntwoDir, 'commands', 'kiln')
+    : joinByStyle(platformDir, 'commands', 'kiln');
 
   return {
-    claudeDir,
-    agentsDir: path.join(claudeDir, 'agents'),
-    commandsDir: path.join(claudeDir, 'commands', 'kiln'),
+    runtime: selectedRuntime,
+    home,
+    platformDir,
+    // Backward-compatible alias used by existing tests and modules.
+    claudeDir: platformDir,
+    codexDir: joinByStyle(home, '.codex'),
+    agentsDir,
+    commandsDir,
     kilntwoDir,
-    dataDir: path.join(kilntwoDir, 'data'),
-    skillsDir: path.join(kilntwoDir, 'skills'),
-    templatesDir: path.join(kilntwoDir, 'templates'),
-    manifestPath: path.join(kilntwoDir, 'manifest.json'),
+    dataDir: joinByStyle(kilntwoDir, 'data'),
+    skillsDir: joinByStyle(kilntwoDir, 'skills'),
+    templatesDir: joinByStyle(kilntwoDir, 'templates'),
+    manifestPath: joinByStyle(kilntwoDir, 'manifest.json'),
   };
 }
 
@@ -30,7 +61,7 @@ function encodeProjectPath(absolutePath) {
 
 function projectMemoryDir(homeOverride, projectPath) {
   const home = homeOverride || os.homedir();
-  return path.join(
+  return joinByStyle(
     home,
     '.claude',
     'projects',
@@ -40,12 +71,18 @@ function projectMemoryDir(homeOverride, projectPath) {
 }
 
 function projectClaudeMd(projectPath) {
-  return path.join(projectPath, 'CLAUDE.md');
+  return joinByStyle(projectPath, 'CLAUDE.md');
+}
+
+function projectAgentsMd(projectPath) {
+  return joinByStyle(projectPath, 'AGENTS.md');
 }
 
 module.exports = {
+  normalizeRuntime,
   resolvePaths,
   encodeProjectPath,
   projectMemoryDir,
   projectClaudeMd,
+  projectAgentsMd,
 };

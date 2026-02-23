@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { resolvePaths } = require('./paths');
+const { resolvePaths, projectAgentsMd, normalizeRuntime } = require('./paths');
 const { writeManifest, computeChecksum } = require('./manifest');
 const { insertProtocol } = require('./markers');
 const VERSION = require('../package.json').version;
@@ -16,16 +16,32 @@ function resolveInstallTarget(projectPath) {
   };
 }
 
-/**
- * @param {object}  [opts={}]
- * @param {string}  [opts.home]        - override home directory (default: os.homedir() via resolvePaths)
- * @param {boolean} [opts.force=false] - overwrite user-edited files when true
- * @param {string}  [opts.projectPath] - project root whose CLAUDE.md receives the protocol block
- *                                       (default: process.cwd())
- * @returns {{ installed: string[], skipped: string[], version: string }}
- */
-function install({ home, force = false, projectPath } = {}) {
-  const { agentsDir, commandsDir, dataDir, kilntwoDir, skillsDir, templatesDir } = resolvePaths(home);
+function resolveRuntimeTargets(runtime) {
+  const selected = String(runtime || 'claude').toLowerCase();
+  if (selected === 'hybrid') {
+    return ['claude', 'codex'];
+  }
+  return [normalizeRuntime(selected)];
+}
+
+function protocolSourceForRuntime(runtime) {
+  if (runtime === 'codex') {
+    return path.join(ASSETS_DIR, 'protocol-codex.md');
+  }
+  return path.join(ASSETS_DIR, 'protocol.md');
+}
+
+function protocolTargetPath(projectPath, runtime) {
+  if (runtime === 'codex') {
+    return projectAgentsMd(projectPath);
+  }
+  return path.join(projectPath, 'CLAUDE.md');
+}
+
+function installSingleRuntime({ home, force, projectPath, runtime }) {
+  const paths = resolvePaths(home, runtime);
+  const { agentsDir, commandsDir, dataDir, kilntwoDir, skillsDir, templatesDir } = paths;
+  const installTarget = resolveInstallTarget(projectPath);
 
   fs.mkdirSync(agentsDir, { recursive: true });
   fs.mkdirSync(commandsDir, { recursive: true });
@@ -116,30 +132,73 @@ function install({ home, force = false, projectPath } = {}) {
     }
   }
 
-  const installTarget = resolveInstallTarget(projectPath);
-  const protocolSrc = path.join(ASSETS_DIR, 'protocol.md');
+  const protocolSrc = protocolSourceForRuntime(runtime);
   const protocolContent = fs.readFileSync(protocolSrc, 'utf8');
-  insertProtocol(installTarget.claudeMdPath, protocolContent, VERSION);
+  const protocolTarget = protocolTargetPath(installTarget.projectPath, runtime);
+  insertProtocol(protocolTarget, protocolContent, VERSION);
 
-  const paths = resolvePaths(home);
   const files = installed.map((destPath) => ({
-    path: path.relative(paths.claudeDir, destPath),
+    path: path.relative(paths.platformDir, destPath),
     checksum: computeChecksum(destPath),
   }));
-  writeManifest({
+
+  const manifestPayload = {
     manifestVersion: 1,
     kilnVersion: VERSION,
     installedAt: new Date().toISOString(),
+    runtime,
     files,
     protocolMarkers: {
       begin: 'kiln:protocol:begin',
       end: 'kiln:protocol:end',
     },
     projectPath: installTarget.projectPath,
-    claudeMdPath: installTarget.claudeMdPath,
-  }, home);
+    protocolTargetPath: protocolTarget,
+  };
 
-  return { installed, skipped, version: VERSION };
+  // Backward-compatible fields used by old uninstall/update flows.
+  if (runtime === 'claude') {
+    manifestPayload.claudeMdPath = protocolTarget;
+  } else {
+    manifestPayload.agentsMdPath = protocolTarget;
+  }
+
+  writeManifest(manifestPayload, home, runtime);
+
+  return { installed, skipped };
+}
+
+/**
+ * @param {object}  [opts={}]
+ * @param {string}  [opts.home]        - override home directory (default: os.homedir() via resolvePaths)
+ * @param {boolean} [opts.force=false] - overwrite user-edited files when true
+ * @param {string}  [opts.projectPath] - project root whose CLAUDE.md receives the protocol block
+ *                                       (default: process.cwd())
+ * @param {string}  [opts.runtime='claude'] - runtime install target: claude, codex, or hybrid
+ * @returns {{ installed: string[], skipped: string[], version: string }}
+ */
+function install({ home, force = false, projectPath, runtime = 'claude' } = {}) {
+  const installed = [];
+  const skipped = [];
+  const targets = resolveRuntimeTargets(runtime);
+  for (const targetRuntime of targets) {
+    const result = installSingleRuntime({
+      home,
+      force,
+      projectPath,
+      runtime: targetRuntime,
+    });
+    installed.push(...result.installed);
+    skipped.push(...result.skipped);
+  }
+
+  return {
+    installed,
+    skipped,
+    version: VERSION,
+    runtime: runtime || 'claude',
+    targets,
+  };
 }
 
 module.exports = {

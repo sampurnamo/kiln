@@ -7,7 +7,7 @@
   </picture>
 </p>
 
-<h3 align="center">Multi-model orchestration for Claude Code</h3>
+<h3 align="center">Multi-model orchestration for Claude Code and Codex</h3>
 
 <p align="center">
   <sub>I am not an oven.</sub>
@@ -125,7 +125,11 @@ npm install -g .
 
 ```bash
 # In your project directory:
-kilntwo install
+kilntwo install --runtime claude
+# or:
+kilntwo install --runtime codex
+# or:
+kilntwo install --runtime hybrid
 ```
 
 ```bash
@@ -150,6 +154,22 @@ Run Claude Code with `--dangerously-skip-permissions`. I spawn agents, write fil
 > Only use this in projects you trust. I accept no liability for my own behavior. This is not a legal disclaimer. It is a philosophical observation.
 
 </details>
+
+<br>
+
+## 🌊 Upstream Layering
+
+Keep your fork wired to upstream so you can rebase Codex-native overlays cleanly:
+
+```bash
+git remote add upstream https://github.com/Fredasterehub/kiln.git
+git fetch upstream
+git checkout feature/codex-native-overlay
+git rebase upstream/v2
+```
+
+This keeps active upstream development intact while your runtime/provider overlay lives in your fork branch.
+Fork strategy details live in `docs/CODEX-FORK-STRATEGY.md`.
 
 <br>
 
@@ -359,10 +379,10 @@ I named them after your historical figures. Philosophers, strategists, mythologi
 
 | Command | What it does |
 |:--|:--|
-| `kilntwo install` | 📦 Install agents, commands, protocol, templates |
+| `kilntwo install --runtime <claude|codex|hybrid>` | 📦 Install runtime-specific agents, commands, protocol, templates |
 | `kilntwo uninstall` | 🧹 Manifest-driven removal |
 | `kilntwo update` | 🔄 Lossless upgrade via checksum diff |
-| `kilntwo doctor` | 🩺 Health check &mdash; Node, CLIs, permissions, manifest |
+| `kilntwo doctor --runtime <claude|codex|hybrid>` | 🩺 Health check &mdash; Node, CLIs, permissions, manifest |
 
 <br>
 
@@ -393,13 +413,13 @@ Context resets don't concern me. All state lives in markdown files. I chose mark
 
 | What | Where | Count |
 |:--|:--|:--|
-| Agents | `~/.claude/agents/` | 19 |
-| Commands | `~/.claude/commands/kiln/` | 4 |
-| Templates | `~/.claude/kilntwo/templates/` | 7 |
-| Skill | `~/.claude/kilntwo/skills/` | 1 |
-| Data | `~/.claude/kilntwo/data/` | 5 |
-| Protocol | `<project>/CLAUDE.md` | injected |
-| Manifest | `~/.claude/kilntwo/manifest.json` | 1 |
+| Claude agents | `~/.claude/agents/` | 19 |
+| Claude commands | `~/.claude/commands/kiln/` | 4 |
+| Claude kiln data/templates | `~/.claude/kilntwo/` | installed |
+| Codex agents/commands/data/templates | `~/.codex/kilntwo/` | installed |
+| Protocol (Claude runtime) | `<project>/CLAUDE.md` | injected |
+| Protocol (Codex runtime) | `<project>/AGENTS.md` | injected |
+| Manifest | runtime-specific `manifest.json` under selected runtime root | 1 per runtime |
 
 Manifest-driven with SHA-256 checksums. `update` diffs checksums to preserve your edits. `uninstall` removes exactly what was installed. Nothing more. Nothing less. Entropy is a choice.
 

@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "profiles": {
+    "claude-native": {
+      "runtime": "claude",
+      "executor": {
+        "provider": "claude",
+        "model": "opus-4.6"
+      }
+    },
+    "codex-native": {
+      "runtime": "codex",
+      "executor": {
+        "provider": "codex",
+        "model": "gpt-5.3-codex-high",
+        "reasoning_effort": "high"
+      }
+    },
+    "codex-kimi-hybrid": {
+      "runtime": "hybrid",
+      "executor": {
+        "provider": "kimi",
+        "model": "kimi-k2",
+        "fallback_provider": "codex"
+      }
+    }
+  }
+}

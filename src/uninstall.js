@@ -3,13 +3,21 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { resolvePaths } = require('./paths');
+const { resolvePaths, normalizeRuntime } = require('./paths');
 const { readManifest, validateManifest } = require('./manifest');
 const { removeProtocol } = require('./markers');
 
-function resolveManifestClaudeMdPath(manifest) {
+function resolveManifestProtocolPath(manifest) {
+  if (manifest && typeof manifest.protocolTargetPath === 'string' && manifest.protocolTargetPath.length > 0) {
+    return manifest.protocolTargetPath;
+  }
+
   if (manifest && typeof manifest.claudeMdPath === 'string' && manifest.claudeMdPath.length > 0) {
     return manifest.claudeMdPath;
+  }
+
+  if (manifest && typeof manifest.agentsMdPath === 'string' && manifest.agentsMdPath.length > 0) {
+    return manifest.agentsMdPath;
   }
 
   if (
@@ -37,9 +45,10 @@ function resolveManifestClaudeMdPath(manifest) {
   return null;
 }
 
-function uninstall({ home } = {}) {
-  const paths = resolvePaths(home ? home : undefined);
-  const { commandsDir, kilntwoDir, skillsDir, templatesDir, manifestPath } = paths;
+function uninstallSingleRuntime({ home, runtime }) {
+  const normalizedRuntime = normalizeRuntime(runtime);
+  const paths = resolvePaths(home, normalizedRuntime);
+  const { commandsDir, kilntwoDir, skillsDir, templatesDir, manifestPath, platformDir } = paths;
 
   const manifest = readManifest({ manifestPath });
   if (manifest === null) {
@@ -58,9 +67,9 @@ function uninstall({ home } = {}) {
     if (file.path.includes('..')) {
       throw new Error(`Manifest entry contains path traversal: ${file.path}`);
     }
-    const absolutePath = path.resolve(paths.claudeDir, file.path);
-    if (!absolutePath.startsWith(paths.claudeDir + path.sep)) {
-      throw new Error(`Refusing to operate outside claude directory: ${file.path}`);
+    const absolutePath = path.resolve(platformDir, file.path);
+    if (!absolutePath.startsWith(platformDir + path.sep)) {
+      throw new Error(`Refusing to operate outside runtime directory: ${file.path}`);
     }
     try {
       fs.unlinkSync(absolutePath);
@@ -74,9 +83,9 @@ function uninstall({ home } = {}) {
     }
   }
 
-  const claudeMdPath = resolveManifestClaudeMdPath(manifest);
-  if (claudeMdPath !== null) {
-    removeProtocol(claudeMdPath);
+  const protocolPath = resolveManifestProtocolPath(manifest);
+  if (protocolPath !== null) {
+    removeProtocol(protocolPath);
   }
 
   for (const dirPath of [templatesDir, skillsDir, kilntwoDir, commandsDir]) {
@@ -103,7 +112,22 @@ function uninstall({ home } = {}) {
     }
   }
 
-  return { removed, notFound };
+  return { removed, notFound, runtime: normalizedRuntime };
+}
+
+function uninstall({ home, runtime = 'claude' } = {}) {
+  const requested = String(runtime || 'claude').toLowerCase();
+  if (requested === 'hybrid') {
+    const claude = uninstallSingleRuntime({ home, runtime: 'claude' });
+    const codex = uninstallSingleRuntime({ home, runtime: 'codex' });
+    return {
+      removed: [...(claude.removed || []), ...(codex.removed || [])],
+      notFound: [...(claude.notFound || []), ...(codex.notFound || [])],
+      runtime: 'hybrid',
+      targets: { claude, codex },
+    };
+  }
+  return uninstallSingleRuntime({ home, runtime: normalizeRuntime(requested) });
 }
 
 module.exports = { uninstall };

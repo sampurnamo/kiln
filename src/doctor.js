@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execSync } = require('node:child_process');
 
-const { resolvePaths } = require('./paths');
+const { resolvePaths, normalizeRuntime } = require('./paths');
 const { readManifest, computeChecksum, validateManifest } = require('./manifest');
 
 function checkCliAvailable(cliName, { platform = process.platform, exec = execSync } = {}) {
@@ -17,11 +17,10 @@ function checkCliAvailable(cliName, { platform = process.platform, exec = execSy
   }
 }
 
-function doctor({ home, strict, platform = process.platform, exec = execSync } = {}) {
+function runRuntimeDoctor({ home, strict, platform, exec, runtime }) {
   const checks = [];
-  const paths = resolvePaths(home);
+  const paths = resolvePaths(home, runtime);
 
-  // a. node-version
   const nodeVersion = process.versions.node;
   const major = Number.parseInt(String(nodeVersion).split('.')[0], 10);
   if (major >= 18) {
@@ -38,29 +37,30 @@ function doctor({ home, strict, platform = process.platform, exec = execSync } =
     });
   }
 
-  // b. claude-cli
-  if (checkCliAvailable('claude', { platform, exec })) {
-    checks.push({ name: 'claude-cli', status: 'pass', message: 'claude CLI found' });
-  } else {
-    checks.push({
-      name: 'claude-cli',
-      status: 'fail',
-      message: 'claude CLI not found — install via npm i -g @anthropic-ai/claude-code',
-    });
+  if (runtime === 'claude') {
+    if (checkCliAvailable('claude', { platform, exec })) {
+      checks.push({ name: 'claude-cli', status: 'pass', message: 'claude CLI found' });
+    } else {
+      checks.push({
+        name: 'claude-cli',
+        status: 'fail',
+        message: 'claude CLI not found — install via npm i -g @anthropic-ai/claude-code',
+      });
+    }
   }
 
-  // c. codex-cli
-  if (checkCliAvailable('codex', { platform, exec })) {
-    checks.push({ name: 'codex-cli', status: 'pass', message: 'codex CLI found' });
-  } else {
-    checks.push({
-      name: 'codex-cli',
-      status: 'fail',
-      message: 'codex CLI not found — install via npm i -g @openai/codex',
-    });
+  if (runtime === 'codex') {
+    if (checkCliAvailable('codex', { platform, exec })) {
+      checks.push({ name: 'codex-cli', status: 'pass', message: 'codex CLI found' });
+    } else {
+      checks.push({
+        name: 'codex-cli',
+        status: 'fail',
+        message: 'codex CLI not found — install via npm i -g @openai/codex',
+      });
+    }
   }
 
-  // c2. git-cli
   if (checkCliAvailable('git', { platform, exec })) {
     checks.push({ name: 'git-cli', status: 'pass', message: 'git CLI found' });
   } else {
@@ -71,44 +71,43 @@ function doctor({ home, strict, platform = process.platform, exec = execSync } =
     });
   }
 
-  // d. claude-dir
   try {
-    fs.accessSync(paths.claudeDir, fs.constants.W_OK);
+    fs.accessSync(paths.platformDir, fs.constants.W_OK);
     checks.push({
-      name: 'claude-dir',
+      name: `${runtime}-dir`,
       status: 'pass',
-      message: '~/.claude/ exists and is writable',
+      message: `${paths.platformDir} exists and is writable`,
     });
   } catch {
     checks.push({
-      name: 'claude-dir',
+      name: `${runtime}-dir`,
       status: 'fail',
-      message: '~/.claude/ is missing or not writable',
+      message: `${paths.platformDir} is missing or not writable`,
     });
   }
 
-  // e. teams-enabled
-  const settingsPath = path.join(paths.claudeDir, 'settings.json');
-  try {
-    const parsed = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-    if (parsed && parsed.teams) {
-      checks.push({ name: 'teams-enabled', status: 'pass', message: 'teams settings found' });
-    } else {
+  if (runtime === 'claude') {
+    const settingsPath = path.join(paths.platformDir, 'settings.json');
+    try {
+      const parsed = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      if (parsed && parsed.teams) {
+        checks.push({ name: 'teams-enabled', status: 'pass', message: 'teams settings found' });
+      } else {
+        checks.push({
+          name: 'teams-enabled',
+          status: 'warn',
+          message: '~/.claude/settings.json not found or teams not configured (non-fatal)',
+        });
+      }
+    } catch {
       checks.push({
         name: 'teams-enabled',
         status: 'warn',
         message: '~/.claude/settings.json not found or teams not configured (non-fatal)',
       });
     }
-  } catch {
-    checks.push({
-      name: 'teams-enabled',
-      status: 'warn',
-      message: '~/.claude/settings.json not found or teams not configured (non-fatal)',
-    });
   }
 
-  // f. manifest
   const manifestPath = paths.manifestPath;
   const manifest = readManifest({ manifestPath });
   if (manifest) {
@@ -126,11 +125,10 @@ function doctor({ home, strict, platform = process.platform, exec = execSync } =
     checks.push({
       name: 'manifest',
       status: 'warn',
-      message: 'manifest not found — run kilntwo install first',
+      message: `manifest not found for ${runtime} runtime — run kilntwo install --runtime ${runtime} first`,
     });
   }
 
-  // g. checksums (strict only)
   if (strict) {
     const strictManifest = readManifest({ manifestPath });
     if (!strictManifest) {
@@ -153,12 +151,12 @@ function doctor({ home, strict, platform = process.platform, exec = execSync } =
         let mismatches = 0;
 
         for (const file of files) {
-          const checkedPath = path.resolve(paths.claudeDir, file.path);
-          if (!checkedPath.startsWith(paths.claudeDir + path.sep)) {
+          const checkedPath = path.resolve(paths.platformDir, file.path);
+          if (!checkedPath.startsWith(paths.platformDir + path.sep)) {
             checks.push({
               name: 'checksums',
               status: 'fail',
-              message: `path escapes claude directory: ${file.path}`,
+              message: `path escapes runtime directory: ${file.path}`,
             });
             mismatches = -1;
             break;
@@ -172,7 +170,7 @@ function doctor({ home, strict, platform = process.platform, exec = execSync } =
         }
 
         if (mismatches === -1) {
-          // already pushed a fail check above
+          // fail already emitted
         } else if (mismatches === 0) {
           checks.push({
             name: 'checksums',
@@ -190,8 +188,30 @@ function doctor({ home, strict, platform = process.platform, exec = execSync } =
     }
   }
 
+  return checks;
+}
+
+function doctor({ home, strict, platform = process.platform, exec = execSync, runtime } = {}) {
+  const requested = runtime == null ? 'hybrid' : String(runtime).toLowerCase();
+  let checks;
+
+  if (requested === 'hybrid') {
+    checks = [
+      ...runRuntimeDoctor({ home, strict, platform, exec, runtime: 'claude' }),
+      ...runRuntimeDoctor({ home, strict, platform, exec, runtime: 'codex' }),
+    ];
+  } else {
+    checks = runRuntimeDoctor({
+      home,
+      strict,
+      platform,
+      exec,
+      runtime: normalizeRuntime(requested),
+    });
+  }
+
   const ok = checks.every((c) => c.status !== 'fail');
-  return { ok, checks };
+  return { ok, checks, runtime: requested };
 }
 
 module.exports = { doctor };

@@ -1,7 +1,30 @@
 {
+  "runtime": "claude",
   "model_mode": "multi-model",
   "operator_mode": "tour",
   "ui_mode": "standard",
+  "executor": {
+    "provider": "codex",
+    "model": "gpt-5.3-codex-high",
+    "fallback_provider": "claude"
+  },
+  "providers": {
+    "codex": {
+      "enabled": true,
+      "cli": "codex",
+      "model": "gpt-5.3-codex-high"
+    },
+    "kimi": {
+      "enabled": false,
+      "cli": "kimi",
+      "model": "kimi-k2"
+    },
+    "claude": {
+      "enabled": true,
+      "cli": "claude",
+      "model": "opus-4.6"
+    }
+  },
   "preferences": {
     "debate_mode": 2,
     "debate_rounds_max": 3,

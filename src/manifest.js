@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { resolvePaths } = require('./paths.js');
+const { resolvePaths, normalizeRuntime } = require('./paths.js');
 
 /**
  * Reads and parses the manifest.json file.
@@ -14,10 +14,18 @@ const { resolvePaths } = require('./paths.js');
  */
 function readManifest(options) {
   let manifestPath;
+  let runtime = 'claude';
   if (options && typeof options === 'object' && typeof options.manifestPath === 'string') {
     manifestPath = options.manifestPath;
   } else {
-    const paths = resolvePaths(typeof options === 'string' ? options : undefined);
+    let homeOverride;
+    if (options && typeof options === 'object') {
+      homeOverride = typeof options.home === 'string' ? options.home : undefined;
+      runtime = normalizeRuntime(options.runtime);
+    } else {
+      homeOverride = typeof options === 'string' ? options : undefined;
+    }
+    const paths = resolvePaths(homeOverride, runtime);
     manifestPath = paths.manifestPath;
   }
 
@@ -38,8 +46,8 @@ function readManifest(options) {
  * @param {string|undefined} homeOverride
  * @returns {void}
  */
-function writeManifest(data, homeOverride) {
-  const { kilntwoDir, manifestPath } = resolvePaths(homeOverride);
+function writeManifest(data, homeOverride, runtime = 'claude') {
+  const { kilntwoDir, manifestPath } = resolvePaths(homeOverride, normalizeRuntime(runtime));
   fs.mkdirSync(kilntwoDir, { recursive: true });
   const serialized = JSON.stringify(data, null, 2);
   fs.writeFileSync(manifestPath, serialized, 'utf8');

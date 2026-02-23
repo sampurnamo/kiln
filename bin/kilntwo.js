@@ -23,13 +23,21 @@ Commands:
 
 Options:
   --home <dir>  Use <dir> instead of ~ as the home directory
+  --runtime <mode>  Runtime target: claude, codex, or hybrid (default: claude)
   --force       Overwrite existing files (install/update)
   --json        Output results as JSON
   --strict      Treat warnings as errors (doctor)
   --version     Print the kilntwo version and exit`;
 
 function parseArgs(argv) {
-  const flags = { home: undefined, force: false, json: false, strict: false, version: false };
+  const flags = {
+    home: undefined,
+    runtime: 'claude',
+    force: false,
+    json: false,
+    strict: false,
+    version: false,
+  };
   let command;
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -56,6 +64,14 @@ function parseArgs(argv) {
         throw new Error('--home requires a directory path');
       }
       flags.home = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    if (arg === '--runtime') {
+      if (i + 1 >= argv.length) {
+        throw new Error('--runtime requires one value: claude, codex, or hybrid');
+      }
+      flags.runtime = String(argv[i + 1]).toLowerCase();
       i += 1;
       continue;
     }
@@ -248,7 +264,7 @@ async function main() {
       if (typeof fn !== 'function') {
         throw new TypeError('Expected ../src/install.js to export a function');
       }
-      result = await fn({ home: flags.home, force: flags.force });
+      result = await fn({ home: flags.home, force: flags.force, runtime: flags.runtime });
     } else if (command === 'uninstall') {
       const modulePath = path.resolve(__dirname, '../src/uninstall.js');
       if (!fs.existsSync(modulePath)) {
@@ -259,7 +275,7 @@ async function main() {
       if (typeof fn !== 'function') {
         throw new TypeError('Expected ../src/uninstall.js to export a function');
       }
-      result = await fn({ home: flags.home });
+      result = await fn({ home: flags.home, runtime: flags.runtime });
     } else if (command === 'update') {
       const modulePath = path.resolve(__dirname, '../src/update.js');
       if (!fs.existsSync(modulePath)) {
@@ -270,7 +286,7 @@ async function main() {
       if (typeof fn !== 'function') {
         throw new TypeError('Expected ../src/update.js to export a function');
       }
-      result = await fn({ home: flags.home, force: flags.force });
+      result = await fn({ home: flags.home, force: flags.force, runtime: flags.runtime });
     } else if (command === 'doctor') {
       const modulePath = path.resolve(__dirname, '../src/doctor.js');
       if (!fs.existsSync(modulePath)) {
@@ -281,7 +297,7 @@ async function main() {
       if (typeof fn !== 'function') {
         throw new TypeError('Expected ../src/doctor.js to export a function');
       }
-      result = await fn({ home: flags.home, strict: flags.strict });
+      result = await fn({ home: flags.home, strict: flags.strict, runtime: flags.runtime });
     } else {
       console.log(bold(HELP_TEXT));
       process.exit(1);
