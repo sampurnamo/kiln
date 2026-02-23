@@ -6,34 +6,48 @@ const path = require('node:path');
 const BEGIN_RE = /<!-- kiln:protocol:begin v([\d.]+) -->/;
 const END_RE = /<!-- kiln:protocol:end -->/;
 
-function buildBlock(content, version) {
-  const inner = content.endsWith('\n') ? content : `${content}\n`;
-  return `<!-- kiln:protocol:begin v${version} -->\n${inner}<!-- kiln:protocol:end -->\n`;
+function detectEol(text) {
+  return text.includes('\r\n') ? '\r\n' : '\n';
+}
+
+function normalizeEol(text, eol) {
+  return String(text).replace(/\r?\n/g, eol);
+}
+
+function buildBlock(content, version, eol = '\n') {
+  const inner = normalizeEol(content, eol);
+  const innerWithNewline = inner.endsWith(eol) ? inner : `${inner}${eol}`;
+  return `<!-- kiln:protocol:begin v${version} -->${eol}${innerWithNewline}<!-- kiln:protocol:end -->${eol}`;
 }
 
 function findBlock(text) {
-  const lines = text.split('\n');
-
-  for (let i = 0; i < lines.length; i += 1) {
-    const beginMatch = lines[i].match(BEGIN_RE);
-    if (!beginMatch) {
-      continue;
-    }
-
-    for (let j = i; j < lines.length; j += 1) {
-      if (END_RE.test(lines[j])) {
-        return {
-          start: i,
-          end: j,
-          version: beginMatch[1],
-        };
-      }
-    }
-
+  const beginMatch = BEGIN_RE.exec(text);
+  if (!beginMatch) {
     return null;
   }
 
-  return null;
+  END_RE.lastIndex = 0;
+  const tail = text.slice(beginMatch.index);
+  const endMatch = END_RE.exec(tail);
+  if (!endMatch) {
+    return null;
+  }
+
+  const endStart = beginMatch.index + endMatch.index;
+  let endIndex = endStart + endMatch[0].length;
+
+  // Include one trailing line ending if present so remove/replace round-trips cleanly.
+  if (text.startsWith('\r\n', endIndex)) {
+    endIndex += 2;
+  } else if (text.startsWith('\n', endIndex)) {
+    endIndex += 1;
+  }
+
+  return {
+    start: beginMatch.index,
+    end: endIndex,
+    version: beginMatch[1],
+  };
 }
 
 function replaceProtocol(filePath, content, version) {
@@ -44,25 +58,16 @@ function replaceProtocol(filePath, content, version) {
     throw new Error(`kiln: no protocol block found in ${filePath}`);
   }
 
-  const lines = text.split('\n');
-  const replacementLines = buildBlock(content, version).split('\n');
-
-  if (replacementLines[replacementLines.length - 1] === '') {
-    replacementLines.pop();
-  }
-
-  lines.splice(block.start, block.end - block.start + 1, ...replacementLines);
-
-  const next = `${lines.join('\n').replace(/\n+$/, '')}\n`;
+  const eol = detectEol(text);
+  const replacement = buildBlock(content, version, eol);
+  const next = `${text.slice(0, block.start)}${replacement}${text.slice(block.end)}`;
   fs.writeFileSync(filePath, next, 'utf8');
 }
 
 function insertProtocol(filePath, content, version) {
-  const block = buildBlock(content, version);
-
   if (!fs.existsSync(filePath)) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, block, 'utf8');
+    fs.writeFileSync(filePath, buildBlock(content, version), 'utf8');
     return;
   }
 
@@ -72,8 +77,10 @@ function insertProtocol(filePath, content, version) {
     return;
   }
 
-  const base = text.replace(/\n+$/, '');
-  const next = base.length === 0 ? block : `${base}\n${block}`;
+  const eol = detectEol(text);
+  const block = buildBlock(content, version, eol);
+  const separator = text.length === 0 || text.endsWith('\n') || text.endsWith('\r\n') ? '' : eol;
+  const next = `${text}${separator}${block}`;
   fs.writeFileSync(filePath, next, 'utf8');
 }
 
@@ -94,16 +101,13 @@ function removeProtocol(filePath) {
     return;
   }
 
-  const lines = text.split('\n');
-  lines.splice(block.start, block.end - block.start + 1);
-
-  const next = lines.join('\n');
+  const next = `${text.slice(0, block.start)}${text.slice(block.end)}`;
   if (next.trim().length === 0) {
     fs.unlinkSync(filePath);
     return;
   }
 
-  fs.writeFileSync(filePath, `${next.replace(/\s+$/, '')}\n`, 'utf8');
+  fs.writeFileSync(filePath, next, 'utf8');
 }
 
 function hasProtocol(filePath) {
