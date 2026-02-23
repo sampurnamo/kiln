@@ -170,6 +170,8 @@ git rebase upstream/v2
 
 This keeps active upstream development intact while your runtime/provider overlay lives in your fork branch.
 Fork strategy details live in `docs/CODEX-FORK-STRATEGY.md`.
+Runtime operations/testing guide: `docs/CODEX-RUNTIME-OPERATIONS.md`.
+Session handoff: `docs/handoff-2026-02-23-codex-softfork.md`.
 
 <br>
 
