@@ -1,8 +1,8 @@
-# Handoff — Codex Soft-Fork (2026-02-23)
+# Handoff — Kiln-Codex Soft-Fork (2026-02-23)
 
 ## Session Outcome
 
-Codex-native Kiln overlay is implemented and pushed to:
+Kiln-Codex overlay is implemented and pushed to:
 
 - Repo: `https://github.com/sampurnamo/kiln`
 - Branch: `feature/codex-native-overlay`

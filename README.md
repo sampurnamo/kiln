@@ -172,6 +172,7 @@ This keeps active upstream development intact while your runtime/provider overla
 Fork strategy details live in `docs/CODEX-FORK-STRATEGY.md`.
 Runtime operations/testing guide: `docs/CODEX-RUNTIME-OPERATIONS.md`.
 Session handoff: `docs/handoff-2026-02-23-codex-softfork.md`.
+Naming: this forked runtime overlay is referred to as **Kiln-Codex** (distinct from native upstream **Kiln**).
 
 <br>
 

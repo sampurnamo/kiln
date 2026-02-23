@@ -1,6 +1,6 @@
-# Codex Fork Strategy
+# Kiln-Codex Fork Strategy
 
-This repository is maintained as a soft fork of `Fredasterehub/kiln` with a Codex-native runtime overlay.
+This repository is maintained as **Kiln-Codex**, a soft fork of `Fredasterehub/kiln` with a Codex-native runtime overlay.
 
 ## Goals
 
