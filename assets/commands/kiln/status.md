@@ -15,8 +15,10 @@ Read MEMORY.md and display a comprehensive, formatted progress summary. This is 
 
 <step name="detect">
 Use `Bash` to run `pwd` and capture `PROJECT_PATH`.
-Compute `ENCODED_PATH` and `MEMORY_DIR` using the same path contract as other commands.
 Set `CLAUDE_HOME="$HOME/.claude"` and `KILN_DIR="$PROJECT_PATH/.kiln"`.
+Read `$KILN_DIR/config.json` and resolve `MEMORY_DIR` from `memory_dir`.
+- If `memory_dir` exists and is non-empty, use it.
+- If missing/empty, set `MEMORY_DIR="$KILN_DIR/memory"` and continue (status is read-only, so do not rewrite config here).
 </step>
 
 <step name="read-memory">

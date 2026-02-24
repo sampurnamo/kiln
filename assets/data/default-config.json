@@ -2,6 +2,7 @@
   "model_mode": "multi-model",
   "operator_mode": "tour",
   "ui_mode": "standard",
+  "memory_dir": null,
   "preferences": {
     "debate_mode": 2,
     "debate_rounds_max": 3,

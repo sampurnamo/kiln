@@ -9,7 +9,7 @@ All runtime paths must follow this contract:
 - `PROJECT_PATH`: absolute path to the active project root.
 - `KILN_DIR`: `$PROJECT_PATH/.kiln`.
 - `CLAUDE_HOME`: `$HOME/.claude`.
-- `MEMORY_DIR`: `$CLAUDE_HOME/projects/$ENCODED_PATH/memory`.
+- `MEMORY_DIR`: read from `$KILN_DIR/config.json` field `memory_dir`; fallback to `$KILN_DIR/memory` and persist.
 - Claude-side install assets: `$CLAUDE_HOME/kilntwo/...`.
 
 Never use root-relative kiln or claude paths. Always anchor filesystem paths to either `$PROJECT_PATH` (project artifacts) or `$HOME` (Claude memory/install artifacts).

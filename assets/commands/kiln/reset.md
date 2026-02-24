@@ -17,12 +17,9 @@ Save all session state to persistent memory files before a context reset so no c
 
 <step name="detect">
 Use `Bash` to run `pwd` and capture the absolute current working directory as `PROJECT_PATH`.
-
-Use `Bash` to compute the encoded project path exactly as:
-```bash
-echo "$PROJECT_PATH" | sed 's|/|-|g'
-```
-Set `CLAUDE_HOME="$HOME/.claude"`. Store the encoded output as `ENCODED`, then construct `MEMORY_DIR="$CLAUDE_HOME/projects/$ENCODED/memory"` to match the Kiln memory convention.
+Set `KILN_DIR="$PROJECT_PATH/.kiln"` and read `$KILN_DIR/config.json`.
+- If `config.json.memory_dir` exists and is non-empty, set `MEMORY_DIR` to that absolute path.
+- If it is missing/empty, set `MEMORY_DIR="$KILN_DIR/memory"`, persist `memory_dir` back to `$KILN_DIR/config.json`, and continue.
 
 Check whether the memory directory exists with `[ -d "$MEMORY_DIR" ]`. If it does not exist, create it with `mkdir -p "$MEMORY_DIR"`.
 

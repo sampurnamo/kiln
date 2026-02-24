@@ -9,9 +9,15 @@ If `$TMUX` is empty, halt immediately and print exactly:
 Determine the project path from the current working directory (`process.cwd()`, `$PWD`, or equivalent) and store it as `PROJECT_PATH`.
 If you cannot determine `PROJECT_PATH`, halt immediately and tell the user exactly:
 "Cannot determine project path. Please run this command from the project root."
-## Step 2: Compute Memory Directory Path
-Compute the encoded project path using POSIX slash splitting exactly as `absolutePath.split('/').join('-')`, then set `MEMORY_DIR = $CLAUDE_HOME/projects/$ENCODED_PATH/memory`.
-Worked example: `PROJECT_PATH=/DEV/myproject`, `encoded=-DEV-myproject`, `MEMORY_DIR=$CLAUDE_HOME/projects/-DEV-myproject/memory`.
+## Step 2: Resolve Memory Directory Path
+Set `KILN_DIR="$PROJECT_PATH/.kiln"` and read `$KILN_DIR/config.json`.
+- If `config.json.memory_dir` exists and is non-empty, set `MEMORY_DIR` to that absolute path.
+- If it is missing/empty, set `MEMORY_DIR="$KILN_DIR/memory"`, persist `memory_dir` back to `$KILN_DIR/config.json`, and continue.
+Legacy migration rule (one-time):
+- Compute `LEGACY_MEMORY_DIR="$CLAUDE_HOME/projects/$ENCODED_PATH/memory"` (where `ENCODED_PATH` is `PROJECT_PATH` with `/` replaced by `-`).
+- If `LEGACY_MEMORY_DIR` exists and `MEMORY_DIR` does not contain `MEMORY.md`, move all memory files from `LEGACY_MEMORY_DIR` to `MEMORY_DIR` before continuing.
+- Keep `memory_dir` in config pointed to `MEMORY_DIR` after migration.
+`MEMORY_DIR` must be absolute.
 ## Step 3: Read MEMORY.md
 Read `$MEMORY_DIR/MEMORY.md`.
 If the file does not exist, or is empty, halt immediately and output exactly this warning block and nothing else:
@@ -304,4 +310,5 @@ Perform this update atomically: read full MEMORY.md, apply both changes, and wri
 - If MEMORY.md is missing/corrupted, warn and direct to `/kiln:start`; do not reconstruct state.
 - Keep resume read-only for project files; only Step 7 may update MEMORY.md.
 - Preserve context already in memory and treat `handoff_note` as authoritative routing context.
+- Every Task spawn in this command MUST include explicit `memory_dir`/`MEMORY_DIR` resolved in Step 2. Never let workers infer legacy memory locations.
 - The orchestrator MUST NOT run project build, compile, test, lint, or deployment commands (e.g., `cargo check`, `npm test`, `go build`, `make`, `pytest`). State assessment uses MEMORY.md fields, phase state files, git status, and handoff context only. Build verification is Maestro's job (Stage 3) and Argus's job (Stage 4).

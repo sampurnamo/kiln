@@ -85,7 +85,7 @@ NODE
    Do not add trailing spaces.
    After writing `.gitignore`, create `$KILN_DIR/config.json`:
    - Read template from `$CLAUDE_HOME/kilntwo/data/default-config.json`.
-   - If template is missing, write the default config object inline with `model_mode`, `preferences`, and `tooling` fields.
+   - If template is missing, write the default config object inline with `model_mode`, `memory_dir`, `preferences`, and `tooling` fields.
    - If `$KILN_DIR/config.json` already exists and parses as JSON, preserve it.
    - If it exists but is invalid JSON, overwrite with the default template.
    After writing this file, update `MEMORY_DIR/MEMORY.md` later in Step 4 (or as soon as `MEMORY_DIR` exists) with:
@@ -115,15 +115,14 @@ NODE
    The path MUST be absolute. Never use a relative path.
 
 3. Resolve memory paths.
-   Compute `HOME` as the user's home directory.
-   Use `echo $HOME` if needed.
-   Compute `ENCODED_PATH` by replacing every `/` in `PROJECT_PATH` with `-`.
-   Use this explicit formula:
-   `ENCODED_PATH = PROJECT_PATH` with `/` replaced by `-`.
-   Example:
-   `/DEV/myapp` becomes `-DEV-myapp`.
-   Compute:
-   `MEMORY_DIR = $CLAUDE_HOME/projects/$ENCODED_PATH/memory`.
+   Read `$KILN_DIR/config.json` and resolve `memory_dir`.
+   - If `memory_dir` exists and is non-empty, use it as `MEMORY_DIR`.
+   - If `memory_dir` is missing, null, or empty, set `MEMORY_DIR="$KILN_DIR/memory"`, persist `memory_dir` back to `$KILN_DIR/config.json`, and continue.
+   Legacy migration rule (one-time):
+   - Compute `LEGACY_MEMORY_DIR="$CLAUDE_HOME/projects/$ENCODED_PATH/memory"` (where `ENCODED_PATH` is `PROJECT_PATH` with `/` replaced by `-`).
+   - If `LEGACY_MEMORY_DIR` exists and `MEMORY_DIR` does not contain `MEMORY.md`, move all memory files from `LEGACY_MEMORY_DIR` to `MEMORY_DIR` before continuing.
+   - Keep `memory_dir` in config pointed to `MEMORY_DIR` after migration.
+   `MEMORY_DIR` must be an absolute path.
    Create `MEMORY_DIR` with `mkdir -p` if it does not exist.
    Confirm the directory exists before continuing.
 
@@ -750,10 +749,10 @@ NODE
 
 ## Key Rules
 
-1. **All paths are dynamic.** Never hardcode paths. Derive every path from `PROJECT_PATH`, `HOME`, and `ENCODED_PATH` from Step 3. The command must work in any project directory.
+1. **All paths are dynamic.** Never hardcode paths. Derive paths from `PROJECT_PATH`, `KILN_DIR`, and config-resolved `MEMORY_DIR` from Step 3. The command must work in any project directory.
 2. **Memory is the source of truth.** Before every stage transition, re-read `MEMORY_DIR/MEMORY.md` and trust canonical fields (`stage`, `status`, `planning_sub_stage`, `phase_number`, `phase_total`, and `## Phase Statuses`). If `stage=planning` and `status=paused`, resume planning review at Step 11. If `stage=execution` and `phase_number` is set, resume execution from that phase using `phase_status` values.
 3. **Never skip stages.** Execute Stage 1 before Stage 2 and Stage 2 before Stage 3. The only exception is resumption as described in Rule 2. Use `/kiln:resume` for resumption; do not implement separate resume logic outside these state checks.
-4. **Use the Task tool for all sub-agents.** Never invoke `kiln-planner-claude`, `kiln-planner-codex`, `kiln-debater`, `kiln-synthesizer`, `kiln-plan-validator`, `kiln-planning-coordinator`, `kiln-phase-executor`, or `kiln-validator` as slash commands. Spawn each exclusively with the Task tool and complete, self-contained prompts. Always set `name` to the agent's character alias (e.g., `"Confucius"`, `"Aristotle"`, `"Maestro"`) and `subagent_type` to the internal name (e.g., `kiln-planner-claude`). This ensures the Claude Code UI shows aliases in the spawn box.
+4. **Use the Task tool for all sub-agents.** Never invoke `kiln-planner-claude`, `kiln-planner-codex`, `kiln-debater`, `kiln-synthesizer`, `kiln-plan-validator`, `kiln-planning-coordinator`, `kiln-phase-executor`, or `kiln-validator` as slash commands. Spawn each exclusively with the Task tool and complete, self-contained prompts. Always set `name` to the agent's character alias (e.g., `"Confucius"`, `"Aristotle"`, `"Maestro"`) and `subagent_type` to the internal name (e.g., `kiln-planner-claude`). Every Task prompt MUST include explicit `memory_dir = $MEMORY_DIR` so workers never infer legacy default memory paths. This ensures the Claude Code UI shows aliases in the spawn box.
 5. **Parallel where safe, sequential where required.** Run Step 8 planners in parallel. Run all other Task spawns sequentially, waiting for each to finish before starting the next.
 6. **Write working outputs only.** Phase executors must create real files with real content and working code. Placeholders, TODO stubs, and non-functional scaffolds are failures that must be reported before continuing.
 7. **Checkpoint memory after every significant action.** Update canonical runtime fields (`stage`, `status`, `planning_sub_stage`, phase fields, `handoff_note`, `handoff_context`, `last_updated`, and phase-status entries when applicable) after Step 2, after Step 4, after Step 5, at every brainstorm checkpoint, after Step 7, after Step 8 (planning coordinator return), after each phase in Step 13, after Step 14, and after Step 15.

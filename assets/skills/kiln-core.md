@@ -9,8 +9,8 @@ All runtime paths follow this contract:
 - `PROJECT_PATH`: absolute path to the active project root.
 - `KILN_DIR`: `$PROJECT_PATH/.kiln` — all pipeline artifacts live here.
 - `CLAUDE_HOME`: `$HOME/.claude`.
-- `MEMORY_DIR`: `$CLAUDE_HOME/projects/$ENCODED_PATH/memory`.
-- `ENCODED_PATH`: `PROJECT_PATH` with `/` replaced by `-` (e.g. `/DEV/myapp` becomes `-DEV-myapp`).
+- `MEMORY_DIR`: resolved from `$KILN_DIR/config.json` field `memory_dir`.
+- Default memory fallback: `$KILN_DIR/memory` (if `memory_dir` is missing or empty).
 - Claude-side install assets: `$CLAUDE_HOME/kilntwo/...`.
 
 All git operations MUST use `git -C $PROJECT_PATH`. Never use root-relative paths. Anchor filesystem paths to either `$PROJECT_PATH` (project artifacts) or `$HOME` (Claude memory/install artifacts).
@@ -40,6 +40,7 @@ All git operations MUST use `git -C $PROJECT_PATH`. Never use root-relative path
 ```json
 {
   "model_mode": "multi-model",
+  "memory_dir": "/absolute/path/to/project/.kiln/memory",
   "preferences": {
     "debate_mode": 2,
     "debate_rounds_max": 3,
@@ -61,6 +62,7 @@ All git operations MUST use `git -C $PROJECT_PATH`. Never use root-relative path
 
 Field notes:
 - `model_mode`: execution model selection (`multi-model` by default).
+- `memory_dir`: absolute path to project memory files. If missing, set to `$KILN_DIR/memory` and persist.
 - `preferences.debate_mode`: default planning debate mode (`2` focused).
 - `preferences.debate_rounds_max`: max critique/revise rounds for Mode 3 debate (`3`).
 - `preferences.review_rounds_max`: max QA rounds per phase (`3`).
